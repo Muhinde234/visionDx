@@ -378,14 +378,14 @@ export default function LandingPage() {
         </motion.div>
       </section>
 
-      {/* ---------- Footer (Modernized) ---------- */}
+     
       <footer className="relative py-12 text-center overflow-hidden">
-        {/* Ambient background glow */}
+    
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-96 h-32 bg-primary/5 blur-3xl rounded-full" />
         </div>
 
-        {/* Animated top separator line */}
+    
         <motion.div
           className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-primary/40 to-transparent"
           initial={{ scaleX: 0, opacity: 0 }}
@@ -401,7 +401,7 @@ export default function LandingPage() {
           transition={{ duration: 0.6 }}
           className="relative"
         >
-          {/* 3D logo hover */}
+        
           <motion.div
             whileHover={{ scale: 1.05, rotateY: 5 }}
             style={{ transformStyle: "preserve-3d" }}
@@ -410,7 +410,7 @@ export default function LandingPage() {
             <Logo width={100} height={32} />
           </motion.div>
 
-          {/* Copyright */}
+       
           <motion.p
             initial={{ opacity: 0, y: 10 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -438,7 +438,7 @@ export default function LandingPage() {
                 className="relative hover:underline decoration-primary/50 underline-offset-4 transition-all"
               >
                 {item}
-                {/* Expanding underline on hover */}
+             
                 <motion.span
                   className="absolute -bottom-1 left-0 h-[1px] bg-primary"
                   initial={{ width: 0 }}
