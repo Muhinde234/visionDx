@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "WebFetch(domain:vision-bn.onrender.com)",
-      "Read(//c/Users/IGIRIMPUHWE Dositha/Desktop/final-project/vision-backend/**)"
-    ]
-  }
-}

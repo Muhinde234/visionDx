@@ -19,7 +19,7 @@ const LangContext = createContext<LangContextValue | null>(null);
 export function LangProvider({ children }: { children: React.ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>(DEFAULT_LOCALE);
 
-  // Hydrate from localStorage
+  
   useEffect(() => {
     const stored = localStorage.getItem(LANG_KEY) as Locale | null;
     if (stored && stored in translations) setLocaleState(stored);

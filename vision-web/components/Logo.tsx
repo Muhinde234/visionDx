@@ -2,11 +2,11 @@ import Image from "next/image";
 import Link from "next/link";
 
 interface LogoProps {
-  /** Pixel width of the image (default: 120) */
+
   width?: number;
-  /** Pixel height of the image (default: 40) */
+  
   height?: number;
-  /** Extra Tailwind classes on the wrapping <Link> */
+
   className?: string;
 }
 

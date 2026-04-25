@@ -23,7 +23,7 @@ export default function AuthGuard({ children, requiredRole }: AuthGuardProps) {
     }
 
     if (requiredRole && !hasRole(requiredRole)) {
-      // Send user to their correct home
+     
       router.replace(user.role === "admin" ? "/admin" : "/dashboard");
     }
   }, [user, isLoading, requiredRole, hasRole, router]);
