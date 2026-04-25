@@ -140,12 +140,18 @@ export async function apiRegister(payload: {
 }
 
 export async function apiGetMe(): Promise<User> {
-  const raw = await apiFetch<{
-    id: string; email: string; full_name: string;
-    role: string; facility_name?: string;
-    is_active: boolean; created_at: string;
-  }>("/api/v1/auth/me");
+  const raw = await apiFetch<RawUser>("/api/v1/auth/me");
+  return mapUser(raw);
+}
 
+// ─── Admin: Users ─────────────────────────────────────────────────────────────
+
+type RawUser = {
+  id: string; email: string; full_name: string; role: string;
+  facility_name?: string; is_active: boolean; is_verified: boolean; created_at: string;
+};
+
+function mapUser(raw: RawUser): User {
   return {
     id:            raw.id,
     name:          raw.full_name,
@@ -154,10 +160,35 @@ export async function apiGetMe(): Promise<User> {
     role:          raw.role as User["role"],
     facility_name: raw.facility_name,
     is_active:     raw.is_active,
+    is_verified:   raw.is_verified,
     created_at:    raw.created_at,
     createdAt:     raw.created_at,
     status:        raw.is_active ? "active" : "inactive",
   };
+}
+
+export async function apiGetUsers(params?: {
+  role?: string; is_active?: boolean; page?: number; page_size?: number;
+}): Promise<PaginatedResponse<User>> {
+  const q = new URLSearchParams();
+  if (params?.role      !== undefined) q.set("role",      params.role);
+  if (params?.is_active !== undefined) q.set("is_active", String(params.is_active));
+  if (params?.page)      q.set("page",      String(params.page));
+  if (params?.page_size) q.set("page_size", String(params.page_size));
+
+  const data = await apiFetch<PaginatedResponse<RawUser>>(`/api/v1/users?${q}`);
+  return { ...data, items: data.items.map(mapUser) };
+}
+
+export async function apiUpdateUser(
+  id: string,
+  payload: { full_name?: string; facility_name?: string; is_active?: boolean; role?: string; is_verified?: boolean },
+): Promise<User> {
+  const raw = await apiFetch<RawUser>(`/api/v1/users/${id}`, {
+    method: "PATCH",
+    body:   JSON.stringify(payload),
+  });
+  return mapUser(raw);
 }
 
 // ─── Predictions ──────────────────────────────────────────────────────────────

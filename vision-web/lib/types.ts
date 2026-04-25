@@ -13,6 +13,7 @@ export interface User {
   role: ApiRole;
   facility_name?: string;
   is_active: boolean;
+  is_verified?: boolean;
   created_at: string;
   /** @deprecated use created_at */
   createdAt?: string;
