@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Eye, EyeOff, Loader2, AlertCircle, ArrowRight, Zap, Fingerprint, Activity } from "lucide-react";
+import { Eye, EyeOff, Loader2, AlertCircle, ArrowRight, Fingerprint, Activity } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import { useLang } from "@/context/LangContext";
