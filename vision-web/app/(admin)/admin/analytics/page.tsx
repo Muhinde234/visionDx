@@ -11,8 +11,8 @@ import {
   Users, Activity, AlertCircle, CheckCircle2,
   Loader2, CalendarDays, Filter,
 } from "lucide-react";
-import { MOCK_REPORTS, MOCK_USERS, getMockDashboardStats, MOCK_MODEL_METRICS } from "@/lib/mock-data";
-import type { Report } from "@/lib/types";
+import { apiGetAnalytics, apiGetUsers, apiGetDiagnoses } from "@/lib/api";
+import type { AnalyticsDashboard, Diagnosis, Prediction, SeverityLevel, User } from "@/lib/types";
 
 const CHART_TOOLTIP = {
   contentStyle: {
@@ -25,6 +25,26 @@ const CHART_TOOLTIP = {
   cursor: { fill: "rgba(16,185,129,0.04)" },
 };
 
+const SEVERITY_COLORS: Record<SeverityLevel, string> = {
+  negative: "#10B981",
+  mild:     "#FBBF24",
+  moderate: "#F97316",
+  severe:   "#EF4444",
+};
+
+const STATUS_STYLE = {
+  pending:  "bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800",
+  complete: "bg-[#10B981]/10 text-[#10B981] border-[#10B981]/20",
+  reviewed: "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800",
+};
+
+const ROLE_COLORS: Record<string, string> = {
+  admin:          "#10B981",
+  doctor:         "#3B82F6",
+  lab_technician: "#8B5CF6",
+  technician:     "#F97316",
+};
+
 function formatDate(iso: string) {
   return new Date(iso).toLocaleString("en-GB", {
     day: "2-digit", month: "short", year: "numeric",
@@ -32,37 +52,11 @@ function formatDate(iso: string) {
   });
 }
 
-/* Severity badge — semantic colors kept for medical data readability */
-function severityStyle(s: Report["severity"]) {
-  return {
-    negative: "bg-[#10B981]/10 text-[#10B981] border-[#10B981]/20",
-    low:      "bg-[#10B981]/20 text-[#059669] border-[#10B981]/30",
-    moderate: "bg-[#0F172A]/5 dark:bg-white/5 text-[#0F172A] dark:text-white border-[#0F172A]/10 dark:border-white/10",
-    high:     "bg-[#0F172A]/10 dark:bg-white/10 text-[#0F172A] dark:text-white border-[#0F172A]/20 dark:border-white/20",
-    severe:   "bg-[#0F172A]/20 dark:bg-white/20 text-[#0F172A] dark:text-white border-[#0F172A]/30 dark:border-white/30",
-  }[s];
-}
-
-function simulateExport(type: "csv" | "pdf", label: string) {
-  if (type === "csv") {
-    const headers = ["Patient ID", "Patient Name", "Date", "Parasitaemia %", "Infected RBCs", "Species", "Severity", "Technician"];
-    const rows = MOCK_REPORTS.map((r) => [
-      r.patientId, r.patientName,
-      new Date(r.timestamp).toLocaleDateString("en-GB"),
-      r.parasitaemia.toFixed(1), r.infectedCells,
-      r.species.join("; ") || "None", r.severity, r.technician,
-    ]);
-    const csv = [headers, ...rows].map((r) => r.join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `visiondx-${label}-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  } else {
-    alert(`PDF export — "${label}"\nBackend integration required for production PDF generation.`);
-  }
+function latestPrediction(d: Diagnosis): Prediction | null {
+  if (!d.predictions?.length) return null;
+  return [...d.predictions].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  )[0];
 }
 
 interface SumCardProps {
@@ -76,14 +70,10 @@ interface SumCardProps {
 function SumCard({ icon, label, value, sub, delay = 0 }: SumCardProps) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 14 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay }}
+      initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay }}
       className="rounded-2xl bg-white dark:bg-[#0F172A] border border-[#10B981]/20 p-5 shadow-sm flex items-start gap-4"
     >
-      <div className="rounded-xl p-2.5 shrink-0 bg-[#10B981]/10">
-        {icon}
-      </div>
+      <div className="rounded-xl p-2.5 shrink-0 bg-[#10B981]/10">{icon}</div>
       <div className="min-w-0">
         <p className="text-xs font-medium text-[#0F172A]/50 dark:text-white/50 truncate">{label}</p>
         <p className="text-2xl font-bold text-[#0F172A] dark:text-white mt-0.5">{value}</p>
@@ -101,40 +91,98 @@ const DATE_RANGES = [
 ] as const;
 
 export default function AdminAnalyticsPage() {
-  const [stats, setStats]           = useState(() => getMockDashboardStats());
+  const [analytics, setAnalytics]   = useState<AnalyticsDashboard | null>(null);
+  const [users, setUsers]           = useState<User[]>([]);
+  const [userTotal, setUserTotal]   = useState<number | null>(null);
+  const [diagnoses, setDiagnoses]   = useState<Diagnosis[]>([]);
+  const [diagTotal, setDiagTotal]   = useState<number | null>(null);
+  const [loading, setLoading]       = useState(true);
   const [exportingCsv, setExportingCsv] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
   const [dateRange, setDateRange]   = useState<"7d" | "30d" | "90d" | "all">("7d");
-  const m = MOCK_MODEL_METRICS;
 
   useEffect(() => {
-    const t = setTimeout(() => setStats(getMockDashboardStats()), 200);
-    return () => clearTimeout(t);
+    Promise.allSettled([
+      apiGetAnalytics(),
+      apiGetUsers({ page_size: 100 }),
+      apiGetDiagnoses({ page: 1 }),
+    ]).then(([aRes, uRes, dRes]) => {
+      if (aRes.status === "fulfilled") setAnalytics(aRes.value);
+      if (uRes.status === "fulfilled") { setUsers(uRes.value.items); setUserTotal(uRes.value.total); }
+      if (dRes.status === "fulfilled") { setDiagnoses(dRes.value.items); setDiagTotal(dRes.value.total); }
+      setLoading(false);
+    });
   }, []);
+
+  // ── derived chart data ────────────────────────────────────────────────────────
+
+  const trendData = analytics?.recent_trend ?? [];
+
+  const stageData = analytics
+    ? Object.entries(analytics.stage_breakdown ?? {}).map(([key, val]) => ({ name: key, count: val as number }))
+    : [];
+
+  const severityData = analytics
+    ? Object.entries(analytics.severity_breakdown).map(([key, val]) => ({
+        name:  key.charAt(0).toUpperCase() + key.slice(1),
+        value: val as number,
+        color: SEVERITY_COLORS[key as SeverityLevel] ?? "#94A3B8",
+      })).filter((d) => d.value > 0)
+    : [];
+
+  const roleData = (() => {
+    const counts: Record<string, number> = {};
+    users.forEach((u) => { counts[u.role] = (counts[u.role] ?? 0) + 1; });
+    return Object.entries(counts).map(([role, count]) => ({
+      name: role.replace("_", " "),
+      count,
+      fill: ROLE_COLORS[role] ?? "#94A3B8",
+    }));
+  })();
+
+  const activeUsers   = users.filter((u) => u.is_active).length;
+  const positiveCount = analytics?.positive_cases ?? 0;
+  const totalDiag     = analytics?.total_diagnoses ?? 0;
+  const negativeCount = totalDiag - positiveCount;
+  const positivityPct = analytics ? `${analytics.positivity_rate.toFixed(1)}% positivity` : "—";
+
+  // ── CSV export ────────────────────────────────────────────────────────────────
 
   function handleCsvExport() {
     setExportingCsv(true);
-    setTimeout(() => { simulateExport("csv", "diagnostic-reports"); setExportingCsv(false); }, 800);
+    try {
+      const headers = ["Diagnosis ID", "Patient", "Date", "Status", "Prediction", "Confidence", "Severity"];
+      const rows = diagnoses.map((d) => {
+        const p = latestPrediction(d);
+        return [
+          d.id, d.patient_name ?? d.patient_id,
+          new Date(d.created_at).toLocaleDateString("en-GB"),
+          d.status,
+          p?.predicted_class ?? "",
+          p ? `${Math.round(p.confidence_score * 100)}%` : "",
+          p?.severity_level ?? "",
+        ];
+      });
+      const csv = [headers, ...rows].map((r) => r.join(",")).join("\n");
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = `visiondx-diagnoses-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExportingCsv(false);
+    }
   }
 
   function handlePdfExport() {
     setExportingPdf(true);
-    setTimeout(() => { simulateExport("pdf", "system-analytics"); setExportingPdf(false); }, 600);
+    setTimeout(() => {
+      alert("PDF export requires backend integration for production PDF generation.");
+      setExportingPdf(false);
+    }, 400);
   }
-
-  const positivityRate = stats.totalScans > 0
-    ? ((stats.positiveScans / stats.totalScans) * 100).toFixed(1)
-    : "0.0";
-
-  const technicianScans: Record<string, number> = {};
-  MOCK_REPORTS.forEach((r) => { technicianScans[r.technician] = (technicianScans[r.technician] ?? 0) + 1; });
-  const techData = Object.entries(technicianScans).map(([name, count]) => ({ name, count }));
-
-  const severityDist = ["negative", "low", "moderate", "high", "severe"].map((sev) => ({
-    name: sev.charAt(0).toUpperCase() + sev.slice(1),
-    count: MOCK_REPORTS.filter((r) => r.severity === sev).length,
-    color: { negative: "#10B981", low: "#059669", moderate: "#0F172A", high: "#374151", severe: "#6B7280" }[sev] ?? "#10B981",
-  })).filter((d) => d.count > 0);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -145,15 +193,15 @@ export default function AdminAnalyticsPage() {
           <div>
             <h2 className="text-2xl font-bold text-[#0F172A] dark:text-white">Analytics & Reports</h2>
             <p className="mt-0.5 text-sm text-[#0F172A]/50 dark:text-white/50">
-              System-wide diagnostic data · {MOCK_REPORTS.length} reports available
+              System-wide diagnostic data
+              {diagTotal !== null && ` · ${diagTotal} diagnoses`}
+              {loading && " · loading…"}
             </p>
           </div>
-
-          {/* Export buttons */}
           <div className="flex items-center gap-2 flex-wrap shrink-0">
             <button
               onClick={handleCsvExport}
-              disabled={exportingCsv}
+              disabled={exportingCsv || diagnoses.length === 0}
               className="inline-flex items-center gap-2 rounded-xl border border-[#10B981]/30 bg-white dark:bg-[#0F172A] hover:bg-[#10B981]/5 px-4 py-2 text-sm font-semibold text-[#0F172A] dark:text-white transition-colors shadow-sm disabled:opacity-60"
             >
               {exportingCsv ? <Loader2 size={16} className="animate-spin" /> : <FileSpreadsheet size={16} strokeWidth={1.8} />}
@@ -170,7 +218,7 @@ export default function AdminAnalyticsPage() {
           </div>
         </div>
 
-        {/* Date range filter */}
+        {/* Date range filter (UI only — filtered server-side not yet supported) */}
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-1.5 text-xs font-medium text-[#0F172A]/50 dark:text-white/50">
             <Filter size={13} strokeWidth={2} />
@@ -197,63 +245,86 @@ export default function AdminAnalyticsPage() {
 
       {/* ── Summary cards ──────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <SumCard icon={<Activity size={18} className="text-[#10B981]" strokeWidth={1.8} />} label="Total Scans"          value={stats.totalScans}                                                            sub="All time · all users"           delay={0}    />
-        <SumCard icon={<AlertCircle size={18} className="text-[#10B981]" strokeWidth={1.8} />} label="Positive Cases"    value={stats.positiveScans}                                                         sub={`${positivityRate}% positivity rate`} delay={0.05} />
-        <SumCard icon={<CheckCircle2 size={18} className="text-[#10B981]" strokeWidth={1.8} />} label="Negative Cases"   value={stats.totalScans - stats.positiveScans}                                       sub="Clear results"                  delay={0.1}  />
-        <SumCard icon={<Users size={18} className="text-[#10B981]" strokeWidth={1.8} />}       label="Active Technicians" value={MOCK_USERS.filter((u) => u.role === "lab" && u.status === "active").length}  sub={`${MOCK_USERS.length} users total`} delay={0.15} />
+        <SumCard
+          icon={<Activity size={18} className="text-[#10B981]" strokeWidth={1.8} />}
+          label="Total Diagnoses" value={loading ? "—" : totalDiag}
+          sub="All time · all users" delay={0}
+        />
+        <SumCard
+          icon={<AlertCircle size={18} className="text-[#10B981]" strokeWidth={1.8} />}
+          label="Positive Cases" value={loading ? "—" : positiveCount}
+          sub={loading ? "Loading…" : positivityPct} delay={0.05}
+        />
+        <SumCard
+          icon={<CheckCircle2 size={18} className="text-[#10B981]" strokeWidth={1.8} />}
+          label="Negative Cases" value={loading ? "—" : negativeCount}
+          sub="Clear results" delay={0.1}
+        />
+        <SumCard
+          icon={<Users size={18} className="text-[#10B981]" strokeWidth={1.8} />}
+          label="Total Users" value={loading ? "—" : (userTotal ?? "—")}
+          sub={loading ? "Loading…" : `${activeUsers} active`} delay={0.15}
+        />
       </div>
 
       {/* ── Charts row 1 ───────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        {/* Scans per day */}
+        {/* Diagnoses trend */}
         <motion.div
           initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
           className="rounded-2xl bg-white dark:bg-[#0F172A] border border-[#10B981]/20 p-5 shadow-sm"
         >
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-sm font-semibold text-[#0F172A] dark:text-white">Scans per Day</h3>
-              <p className="text-xs text-[#0F172A]/40 dark:text-white/40 mt-0.5">Last 7 days · all technicians</p>
+              <h3 className="text-sm font-semibold text-[#0F172A] dark:text-white">Diagnoses Trend</h3>
+              <p className="text-xs text-[#0F172A]/40 dark:text-white/40 mt-0.5">Recent activity</p>
             </div>
-            <TrendingUp size={16} className="text-[#10B981]/60" />
+            {loading ? <Loader2 size={14} className="animate-spin text-[#10B981]" /> : <TrendingUp size={16} className="text-[#10B981]/60" />}
           </div>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={stats.scansByDay} barCategoryGap="35%">
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(16,185,129,0.1)" />
-              <XAxis dataKey="date" tick={{ fontSize: 11, fill: "rgba(15,23,42,0.5)" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: "rgba(15,23,42,0.5)" }} axisLine={false} tickLine={false} />
-              <Tooltip {...CHART_TOOLTIP} />
-              <Bar dataKey="count" name="Scans" fill="#10B981" radius={[6, 6, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          {trendData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={trendData} barCategoryGap="35%">
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(16,185,129,0.1)" />
+                <XAxis dataKey="date" tick={{ fontSize: 11, fill: "rgba(15,23,42,0.5)" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: "rgba(15,23,42,0.5)" }} axisLine={false} tickLine={false} />
+                <Tooltip {...CHART_TOOLTIP} />
+                <Bar dataKey="count" name="Diagnoses" fill="#10B981" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-48 text-[#0F172A]/30 dark:text-white/30 text-sm">
+              {loading ? "Loading…" : "No trend data yet"}
+            </div>
+          )}
         </motion.div>
 
-        {/* Parasitaemia trend */}
+        {/* Cases by stage */}
         <motion.div
           initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
           className="rounded-2xl bg-white dark:bg-[#0F172A] border border-[#10B981]/20 p-5 shadow-sm"
         >
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-sm font-semibold text-[#0F172A] dark:text-white">Avg. Parasitaemia Trend</h3>
-              <p className="text-xs text-[#0F172A]/40 dark:text-white/40 mt-0.5">Weekly average across all cases</p>
+              <h3 className="text-sm font-semibold text-[#0F172A] dark:text-white">Cases by Stage</h3>
+              <p className="text-xs text-[#0F172A]/40 dark:text-white/40 mt-0.5">Malaria stage distribution</p>
             </div>
+            {loading && <Loader2 size={14} className="animate-spin text-[#10B981]" />}
           </div>
-          <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={stats.parasitaemiaOverTime}>
-              <defs>
-                <linearGradient id="aGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor="#10B981" stopOpacity={0.25} />
-                  <stop offset="95%" stopColor="#10B981" stopOpacity={0}    />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(16,185,129,0.1)" />
-              <XAxis dataKey="date" tick={{ fontSize: 11, fill: "rgba(15,23,42,0.5)" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: "rgba(15,23,42,0.5)" }} axisLine={false} tickLine={false} unit="%" />
-              <Tooltip {...CHART_TOOLTIP} formatter={(v) => [`${v}%`, "Avg. Parasitaemia"]} />
-              <Area type="monotone" dataKey="value" stroke="#10B981" strokeWidth={2} fill="url(#aGrad)" dot={{ r: 4, fill: "#10B981" }} />
-            </AreaChart>
-          </ResponsiveContainer>
+          {stageData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={stageData} layout="vertical" barCategoryGap="30%">
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(16,185,129,0.1)" horizontal={false} />
+                <XAxis type="number" tick={{ fontSize: 11, fill: "rgba(15,23,42,0.5)" }} axisLine={false} tickLine={false} />
+                <YAxis dataKey="name" type="category" tick={{ fontSize: 11, fill: "rgba(15,23,42,0.5)" }} axisLine={false} tickLine={false} width={90} />
+                <Tooltip {...CHART_TOOLTIP} />
+                <Bar dataKey="count" name="Cases" fill="#059669" radius={[0, 6, 6, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-48 text-[#0F172A]/30 dark:text-white/30 text-sm">
+              {loading ? "Loading…" : "No stage data yet"}
+            </div>
+          )}
         </motion.div>
       </div>
 
@@ -266,108 +337,162 @@ export default function AdminAnalyticsPage() {
         >
           <div className="mb-4">
             <h3 className="text-sm font-semibold text-[#0F172A] dark:text-white">Cases by Severity</h3>
-            <p className="text-xs text-[#0F172A]/40 dark:text-white/40 mt-0.5">Distribution across all reports</p>
+            <p className="text-xs text-[#0F172A]/40 dark:text-white/40 mt-0.5">Distribution across all diagnoses</p>
           </div>
-          <ResponsiveContainer width="100%" height={200}>
-            <PieChart>
-              <Pie data={severityDist} dataKey="count" nameKey="name" cx="50%" cy="50%" outerRadius={72} innerRadius={44}>
-                {severityDist.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-              </Pie>
-              <Tooltip {...CHART_TOOLTIP} />
-              <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
-            </PieChart>
-          </ResponsiveContainer>
+          {severityData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={200}>
+              <PieChart>
+                <Pie data={severityData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={72} innerRadius={44}>
+                  {severityData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                </Pie>
+                <Tooltip {...CHART_TOOLTIP} />
+                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-48 text-[#0F172A]/30 dark:text-white/30 text-sm">
+              {loading ? "Loading…" : "No severity data yet"}
+            </div>
+          )}
         </motion.div>
 
-        {/* Scans by technician */}
+        {/* Users by role */}
         <motion.div
           initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
           className="rounded-2xl bg-white dark:bg-[#0F172A] border border-[#10B981]/20 p-5 shadow-sm"
         >
           <div className="mb-4">
-            <h3 className="text-sm font-semibold text-[#0F172A] dark:text-white">Scans by Technician</h3>
-            <p className="text-xs text-[#0F172A]/40 dark:text-white/40 mt-0.5">Workload distribution</p>
+            <h3 className="text-sm font-semibold text-[#0F172A] dark:text-white">Users by Role</h3>
+            <p className="text-xs text-[#0F172A]/40 dark:text-white/40 mt-0.5">
+              {userTotal !== null ? `${userTotal} registered users` : "Workload distribution"}
+            </p>
           </div>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={techData} layout="vertical" barCategoryGap="30%">
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(16,185,129,0.1)" horizontal={false} />
-              <XAxis type="number" tick={{ fontSize: 11, fill: "rgba(15,23,42,0.5)" }} axisLine={false} tickLine={false} />
-              <YAxis dataKey="name" type="category" tick={{ fontSize: 11, fill: "rgba(15,23,42,0.5)" }} axisLine={false} tickLine={false} width={110} />
-              <Tooltip {...CHART_TOOLTIP} />
-              <Bar dataKey="count" name="Scans" fill="#059669" radius={[0, 6, 6, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          {roleData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={roleData} layout="vertical" barCategoryGap="30%">
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(16,185,129,0.1)" horizontal={false} />
+                <XAxis type="number" tick={{ fontSize: 11, fill: "rgba(15,23,42,0.5)" }} axisLine={false} tickLine={false} />
+                <YAxis dataKey="name" type="category" tick={{ fontSize: 11, fill: "rgba(15,23,42,0.5)" }} axisLine={false} tickLine={false} width={110} />
+                <Tooltip {...CHART_TOOLTIP} />
+                <Bar dataKey="count" name="Users" radius={[0, 6, 6, 0]}>
+                  {roleData.map((entry, i) => (
+                    <Cell key={i} fill={entry.fill} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-48 text-[#0F172A]/30 dark:text-white/30 text-sm">
+              {loading ? "Loading…" : "No user data yet"}
+            </div>
+          )}
         </motion.div>
       </div>
 
-      {/* ── Reports table ──────────────────────────────────────────────────── */}
+      {/* ── Diagnoses table ────────────────────────────────────────────────── */}
       <motion.div
         initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
         className="rounded-2xl bg-white dark:bg-[#0F172A] border border-[#10B981]/20 shadow-sm overflow-hidden"
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-[#10B981]/10">
           <div>
-            <h3 className="text-sm font-semibold text-[#0F172A] dark:text-white">All Reports</h3>
-            <p className="text-xs text-[#0F172A]/40 dark:text-white/40 mt-0.5">{MOCK_REPORTS.length} diagnostic reports</p>
+            <h3 className="text-sm font-semibold text-[#0F172A] dark:text-white">Recent Diagnoses</h3>
+            <p className="text-xs text-[#0F172A]/40 dark:text-white/40 mt-0.5">
+              {diagTotal !== null ? `${diagTotal} total records` : "Loading…"}
+            </p>
           </div>
           <button
             onClick={handleCsvExport}
-            disabled={exportingCsv}
+            disabled={exportingCsv || diagnoses.length === 0}
             className="flex items-center gap-1.5 rounded-lg bg-[#10B981]/10 hover:bg-[#10B981]/20 px-3 py-1.5 text-xs font-semibold text-[#10B981] transition-colors disabled:opacity-60"
           >
             {exportingCsv ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} strokeWidth={2} />}
-            Download All
+            Download CSV
           </button>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs font-medium text-[#0F172A]/50 dark:text-white/50 uppercase tracking-wider bg-[#10B981]/5 dark:bg-white/5">
-                {["Patient", "Sample ID", "Date", "Parasitaemia", "Severity", "Technician", "Export"].map((h) => (
-                  <th key={h} className="px-4 py-3 whitespace-nowrap">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#10B981]/10">
-              {MOCK_REPORTS.map((r, i) => (
-                <motion.tr
-                  key={r.id}
-                  initial={{ opacity: 0, x: -6 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.4 + i * 0.04 }}
-                  className="hover:bg-[#10B981]/5 dark:hover:bg-white/3 transition-colors"
-                >
-                  <td className="px-4 py-3.5">
-                    <p className="font-medium text-[#0F172A] dark:text-white whitespace-nowrap">{r.patientName}</p>
-                    <p className="text-[11px] text-[#0F172A]/40 dark:text-white/40">{r.patientId}</p>
-                  </td>
-                  <td className="px-4 py-3.5 text-xs font-mono text-[#0F172A]/50 dark:text-white/50">{r.sampleId}</td>
-                  <td className="px-4 py-3.5 text-xs text-[#0F172A]/50 dark:text-white/50 whitespace-nowrap">{formatDate(r.timestamp)}</td>
-                  <td className="px-4 py-3.5">
-                    <span className={`font-bold text-sm ${r.parasitaemia > 0 ? "text-red-500" : "text-[#10B981]"}`}>
-                      {r.parasitaemia.toFixed(1)}%
-                    </span>
-                  </td>
-                  <td className="px-4 py-3.5">
-                    <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold capitalize ${severityStyle(r.severity)}`}>
-                      {r.severity}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3.5 text-xs text-[#0F172A]/70 dark:text-white/70 whitespace-nowrap">{r.technician}</td>
-                  <td className="px-4 py-3.5">
-                    <button
-                      onClick={() => simulateExport("pdf", `report-${r.patientId}`)}
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-[#10B981]/10 text-[#10B981] hover:bg-[#10B981]/20 px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap"
+
+        {loading ? (
+          <div className="flex items-center justify-center h-32 gap-2 text-[#0F172A]/40 dark:text-white/40">
+            <Loader2 size={16} className="animate-spin text-[#10B981]" />
+            <span className="text-sm">Loading diagnoses…</span>
+          </div>
+        ) : diagnoses.length === 0 ? (
+          <div className="flex items-center justify-center h-32 text-[#0F172A]/40 dark:text-white/40 text-sm">
+            No diagnoses yet.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs font-medium text-[#0F172A]/50 dark:text-white/50 uppercase tracking-wider bg-[#10B981]/5 dark:bg-white/5">
+                  {["Patient", "Date", "Status", "Prediction", "Confidence", "Severity"].map((h) => (
+                    <th key={h} className="px-4 py-3 whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#10B981]/10">
+                {diagnoses.map((d, i) => {
+                  const pred = latestPrediction(d);
+                  return (
+                    <motion.tr
+                      key={d.id}
+                      initial={{ opacity: 0, x: -6 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.4 + i * 0.03 }}
+                      className="hover:bg-[#10B981]/5 dark:hover:bg-white/3 transition-colors"
                     >
-                      <Download size={12} strokeWidth={2} />
-                      PDF
-                    </button>
-                  </td>
-                </motion.tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                      <td className="px-4 py-3.5">
+                        <p className="font-medium text-[#0F172A] dark:text-white whitespace-nowrap">
+                          {d.patient_name ?? "—"}
+                        </p>
+                        <p className="text-[11px] text-[#0F172A]/40 dark:text-white/40 font-mono">{d.id.slice(0, 8)}…</p>
+                      </td>
+                      <td className="px-4 py-3.5 text-xs text-[#0F172A]/50 dark:text-white/50 whitespace-nowrap">
+                        {formatDate(d.created_at)}
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold capitalize ${STATUS_STYLE[d.status]}`}>
+                          {d.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3.5 text-xs text-[#0F172A]/70 dark:text-white/70">
+                        {pred
+                          ? pred.predicted_class
+                          : <span className="italic text-[#0F172A]/30 dark:text-white/30">Pending</span>
+                        }
+                      </td>
+                      <td className="px-4 py-3.5">
+                        {pred ? (
+                          <span className="font-bold text-sm text-[#10B981]">
+                            {Math.round(pred.confidence_score * 100)}%
+                          </span>
+                        ) : (
+                          <span className="text-xs text-[#0F172A]/30 dark:text-white/30">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3.5">
+                        {pred ? (
+                          <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold capitalize ${
+                            {
+                              negative: "bg-[#10B981]/10 text-[#10B981] border-[#10B981]/20",
+                              mild:     "bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800",
+                              moderate: "bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800",
+                              severe:   "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800",
+                            }[pred.severity_level]
+                          }`}>
+                            {pred.severity_level}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-[#0F172A]/30 dark:text-white/30">—</span>
+                        )}
+                      </td>
+                    </motion.tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </motion.div>
     </div>
   );
