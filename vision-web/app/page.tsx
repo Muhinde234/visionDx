@@ -152,7 +152,7 @@ export default function LandingPage() {
           </button>
         </div>
 
-        {/* Mobile menu */}
+ 
         {mobileOpen && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
@@ -186,9 +186,9 @@ export default function LandingPage() {
         )}
       </nav>
 
-      {/* ---------- Hero (full screen) ---------- */}
+     
       <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
-        {/* Animated background shapes */}
+      
         <FloatingShapes />
 
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full pointer-events-none overflow-hidden">
@@ -233,7 +233,7 @@ export default function LandingPage() {
               <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.97 }}>
                 <Link
                   href="/login"
-                  className="block w-full sm:w-auto px-10 py-4 bg-primary hover:bg-primary-hover text-white rounded-2xl font-bold transition-all shadow-xl shadow-primary/25"
+                  className="block w-full sm:w-auto px-10 py-4 bg-primary hover:bg-primary-hover text-white rounded-full font-bold transition-all shadow-xl shadow-primary/25"
                 >
                   Start Analysis Free
                 </Link>
@@ -241,7 +241,7 @@ export default function LandingPage() {
               <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.97 }}>
                 <Link
                   href="/login"
-                  className="block w-full sm:w-auto px-10 py-4 bg-light dark:bg-dark border border-primary/20 hover:bg-primary/5 text-dark dark:text-light rounded-2xl font-bold transition-all"
+                  className="block w-full sm:w-auto px-10 py-4 bg-light dark:bg-dark border border-primary/20 hover:bg-primary/5 text-dark dark:text-light rounded-full font-bold transition-all"
                 >
                   View Documentation
                 </Link>
