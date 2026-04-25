@@ -188,26 +188,6 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* ── Quick-Fill Module ── */}
-        <div className="mt-8 grid grid-cols-2 gap-3">
-          {[
-            { label: "ADMIN_ROOT", email: "admin@visiondx.ai", pass: "admin123" },
-            { label: "LAB_TECH", email: "lab@visiondx.ai", pass: "lab123" },
-          ].map((creds) => (
-            <button
-              key={creds.email}
-              type="button"
-              onClick={() => { setEmail(creds.email); setPassword(creds.pass); }}
-              className="flex items-center justify-between px-4 py-3.5 rounded-2xl bg-dark/[0.02] dark:bg-white/[0.02] border border-dark/5 dark:border-primary/10 hover:border-primary transition-all group"
-            >
-              <div className="flex flex-col items-start">
-                <span className="text-[9px] font-black text-primary tracking-widest uppercase opacity-70">{creds.label}</span>
-                <span className="text-[8px] font-mono text-dark/40 dark:text-white/20 uppercase mt-0.5">Quick-Link</span>
-              </div>
-              <Zap size={12} className="text-primary/30 group-hover:text-primary transition-colors" />
-            </button>
-          ))}
-        </div>
       </motion.div>
       
       {/* ── Fixed Console Errors (Next/Link spacing removed) ── */}
