@@ -42,7 +42,7 @@ export default function SettingsPage() {
 
   const [isDark, setIsDark] = useState(false);
   const [notifs, setNotifs] = useState({ scanComplete: true, weeklyReport: false, systemAlerts: true });
-  const [profile, setProfile] = useState({ name: user?.name ?? "", email: user?.email ?? "", department: user?.department ?? "" });
+  const [profile, setProfile] = useState({ name: user?.name ?? "", email: user?.email ?? "", department: user?.facility_name ?? "" });
 
   useEffect(() => {
     const stored = localStorage.getItem(THEME_KEY);
