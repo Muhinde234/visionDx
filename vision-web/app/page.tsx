@@ -53,17 +53,17 @@ const FEATURES = [
   },
 ] as const;
 
-// 3D floating shapes for hero background
+
 const FloatingShapes = () => (
   <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
-    {/* Orbit ring */}
+ 
     <motion.div
       animate={{ rotateX: 360, rotateY: 360 }}
       transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
       className="absolute top-[10%] left-[15%] w-32 h-32 rounded-full border border-primary/20"
       style={{ transformStyle: "preserve-3d", perspective: 800 }}
     />
-    {/* Floating cube */}
+   
     <motion.div
       animate={{
         y: [0, -20, 0],
@@ -77,7 +77,7 @@ const FloatingShapes = () => (
       <div className="w-full h-full border-2 border-primary/10 bg-primary/5 backdrop-blur-sm rounded-2xl" />
       <div className="absolute inset-2 border border-primary/20 rounded-xl" />
     </motion.div>
-    {/* Glowing sphere */}
+
     <motion.div
       animate={{ scale: [1, 1.2, 1], rotate: 360 }}
       transition={{ duration: 15, repeat: Infinity, ease: "easeInOut" }}
@@ -97,7 +97,7 @@ export default function LandingPage() {
   const [dark, setDark] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // Parallax scroll for hero
+  
   const { scrollY } = useScroll();
   const heroY = useTransform(scrollY, [0, 500], [0, 100]);
   const heroOpacity = useTransform(scrollY, [0, 300], [1, 0.3]);
@@ -115,7 +115,7 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen w-full flex flex-col transition-colors duration-300">
-      {/* ---------- Navbar ---------- */}
+      
       <nav
         className={`fixed top-0 z-50 w-full transition-all duration-300 border-b ${
           scrolled
@@ -141,7 +141,7 @@ export default function LandingPage() {
             </Link>
             <Link
               href="/login"
-              className="bg-primary hover:bg-primary-hover text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-lg shadow-primary/20"
+              className="bg-primary hover:bg-primary-hover text-white px-5 py-2.5 rounded-full text-sm font-bold transition-all shadow-lg shadow-primary/20"
             >
               Try Demo
             </Link>
@@ -421,7 +421,7 @@ export default function LandingPage() {
             VisionDx Diagnostic AI © 2026
           </motion.p>
 
-          {/* Interactive links */}
+    
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             whileInView={{ opacity: 1, y: 0 }}
