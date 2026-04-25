@@ -251,7 +251,7 @@ export default function LandingPage() {
         </motion.div>
       </section>
 
-      {/* ---------- Features with 3D tilt cards ---------- */}
+  
       <section id="features" className="py-24 px-6 max-w-7xl mx-auto w-full">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -280,7 +280,7 @@ export default function LandingPage() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: i * 0.1, duration: 0.5 }}
-              // 3D tilt on hover
+         
               whileHover={{
                 rotateY: 5,
                 rotateX: -5,
@@ -289,7 +289,7 @@ export default function LandingPage() {
               style={{ transformStyle: "preserve-3d", perspective: 1000 }}
               className="group relative bg-surface dark:bg-dark/40 p-8 rounded-[2rem] border border-primary/15 hover:border-primary transition-all duration-500"
             >
-              {/* Hover glow */}
+        
               <div className="absolute inset-0 bg-primary/0 group-hover:bg-primary/[0.02] rounded-[2rem] transition-colors" />
 
               <div className="relative" style={{ transformStyle: "preserve-3d" }}>
@@ -332,7 +332,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ---------- CTA with 3D card ---------- */}
+    
       <section className="py-24 px-6">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
@@ -341,7 +341,7 @@ export default function LandingPage() {
           transition={{ duration: 0.6 }}
           className="max-w-5xl mx-auto bg-black dark:bg-primary/10 rounded-[3rem] p-12 md:p-20 text-center relative overflow-hidden"
         >
-          {/* Animated glow behind */}
+      
           <div className="absolute top-0 right-0 w-64 h-64 bg-primary/20 blur-[100px] rounded-full pointer-events-none" />
           <motion.div
             className="absolute bottom-0 left-0 w-48 h-48 bg-primary/10 blur-[80px] rounded-full pointer-events-none"
@@ -364,7 +364,7 @@ export default function LandingPage() {
           >
             <Link
               href="/login"
-              className="inline-flex items-center gap-3 px-10 py-5 bg-primary hover:bg-primary-hover text-white rounded-2xl font-bold transition-all shadow-2xl shadow-primary/30"
+              className="inline-flex items-center gap-3 px-10 py-5 bg-primary hover:bg-primary-hover text-white rounded-full font-bold transition-all shadow-2xl shadow-primary/30"
             >
               Get Started Now
               <motion.span
