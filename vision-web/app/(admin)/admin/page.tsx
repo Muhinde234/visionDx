@@ -17,7 +17,7 @@ import { apiGetUsers, apiGetAnalytics } from "@/lib/api";
 import { MOCK_LOGS, MOCK_MODEL_METRICS } from "@/lib/mock-data";
 import type { User, AnalyticsDashboard } from "@/lib/types";
 
-// ─── constants ────────────────────────────────────────────────────────────────
+
 
 const CHART_TOOLTIP = {
   contentStyle: {
@@ -56,7 +56,7 @@ function formatTime(iso: string) {
   });
 }
 
-// ─── page ──────────────────────────────────────────────────────────────────────
+
 
 export default function AdminDashboardPage() {
   const [analytics, setAnalytics] = useState<AnalyticsDashboard | null>(null);
@@ -80,7 +80,7 @@ export default function AdminDashboardPage() {
     });
   }, []);
 
-  // Build chart data from real analytics
+
   const trendData = analytics?.recent_trend ?? [];
 
   const severityData = analytics
@@ -97,11 +97,10 @@ export default function AdminDashboardPage() {
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
 
-      {/* ── Hero banner ────────────────────────────────────────────────────── */}
       <motion.div
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative overflow-hidden rounded-2xl bg-[#0F172A] border border-[#10B981]/20 text-white p-6"
+        className="relative overflow-hidden rounded-2xl bg-[#0F172A]/200 border border-[#10B981]/20 text-white p-6"
       >
         <div className="absolute -top-16 right-0 h-40 w-64 rounded-full bg-[#10B981]/8 blur-3xl pointer-events-none" />
 

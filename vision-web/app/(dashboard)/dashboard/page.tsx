@@ -85,11 +85,10 @@ export default function DashboardPage() {
   return (
     <div className="space-y-5 max-w-7xl mx-auto">
 
-      {/* ── Welcome banner ─────────────────────────────────────────────────── */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative overflow-hidden rounded-2xl bg-[#0F172A] text-white p-5 sm:p-7 border border-[#10B981]/20"
+        className="relative overflow-hidden rounded-2xl bg-[#0F172A]/200 text-white p-5 sm:p-7 border border-[#10B981]/20"
       >
         <div className="absolute top-0 right-0 h-40 w-64 rounded-full bg-[#10B981]/8 blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 left-32 h-24 w-40 rounded-full bg-[#10B981]/5 blur-2xl pointer-events-none" />
