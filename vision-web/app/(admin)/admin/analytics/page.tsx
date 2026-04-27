@@ -11,7 +11,7 @@ import {
   Users, Activity, AlertCircle, CheckCircle2,
   Loader2, CalendarDays, Filter,
 } from "lucide-react";
-import { apiGetAnalytics, apiGetUsers, apiGetDiagnoses } from "@/lib/api";
+import { apiGetAnalytics, apiGetUsers, apiGetDiagnoses, apiExportCsv, apiExportPdf } from "@/lib/api";
 import type { AnalyticsDashboard, Diagnosis, Prediction, SeverityLevel, User } from "@/lib/types";
 
 const CHART_TOOLTIP = {
@@ -146,11 +146,24 @@ export default function AdminAnalyticsPage() {
   const negativeCount = totalDiag - positiveCount;
   const positivityPct = analytics ? `${analytics.positivity_rate.toFixed(1)}% positivity` : "—";
 
-  // ── CSV export ────────────────────────────────────────────────────────────────
+  // ── Exports ───────────────────────────────────────────────────────────────────
 
-  function handleCsvExport() {
+  function triggerDownload(blob: Blob, filename: string) {
+    const url = URL.createObjectURL(blob);
+    const a   = document.createElement("a");
+    a.href     = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function handleCsvExport() {
     setExportingCsv(true);
     try {
+      const blob = await apiExportCsv();
+      triggerDownload(blob, `visiondx-export-${new Date().toISOString().slice(0, 10)}.csv`);
+    } catch {
+      // fallback: build CSV from loaded data
       const headers = ["Diagnosis ID", "Patient", "Date", "Status", "Prediction", "Confidence", "Severity"];
       const rows = diagnoses.map((d) => {
         const p = latestPrediction(d);
@@ -163,25 +176,24 @@ export default function AdminAnalyticsPage() {
           p?.severity_level ?? "",
         ];
       });
-      const csv = [headers, ...rows].map((r) => r.join(",")).join("\n");
+      const csv  = [headers, ...rows].map((r) => r.join(",")).join("\n");
       const blob = new Blob([csv], { type: "text/csv" });
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement("a");
-      a.href     = url;
-      a.download = `visiondx-diagnoses-${new Date().toISOString().slice(0, 10)}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
+      triggerDownload(blob, `visiondx-diagnoses-${new Date().toISOString().slice(0, 10)}.csv`);
     } finally {
       setExportingCsv(false);
     }
   }
 
-  function handlePdfExport() {
+  async function handlePdfExport() {
     setExportingPdf(true);
-    setTimeout(() => {
-      alert("PDF export requires backend integration for production PDF generation.");
+    try {
+      const blob = await apiExportPdf();
+      triggerDownload(blob, `visiondx-report-${new Date().toISOString().slice(0, 10)}.pdf`);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "PDF export failed.");
+    } finally {
       setExportingPdf(false);
-    }, 400);
+    }
   }
 
   return (

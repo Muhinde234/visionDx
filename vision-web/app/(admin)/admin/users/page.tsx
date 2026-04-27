@@ -17,7 +17,6 @@ const ROLES: { value: ApiRole; label: string }[] = [
   { value: "admin",          label: "Administrator" },
   { value: "doctor",         label: "Doctor" },
   { value: "lab_technician", label: "Lab Technician" },
-  { value: "technician",     label: "Technician" },
 ];
 
 const ROLE_STYLE: Record<string, string> = {

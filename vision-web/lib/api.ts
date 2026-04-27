@@ -59,6 +59,25 @@ async function attemptRefresh(): Promise<string | null> {
   }
 }
 
+// ─── Friendly HTTP error messages ────────────────────────────────────────────
+
+function friendlyError(status: number, serverMsg?: string): string {
+  if (serverMsg) return serverMsg;
+  switch (true) {
+    case status === 401: return "Your session has expired. Please sign in again.";
+    case status === 403: return "You don't have permission to do that.";
+    case status === 404: return "The requested resource was not found.";
+    case status === 413: return "The file is too large. Please use an image under 10 MB.";
+    case status === 422: return "Some information is invalid. Please check your input and try again.";
+    case status === 429: return "Too many requests. Please wait a moment and try again.";
+    case status === 502:
+    case status === 503:
+    case status === 504: return "The AI service is temporarily unavailable. Please try again in a few minutes.";
+    case status >= 500:  return "Something went wrong on the server. Please try again shortly.";
+    default:             return `Request failed (${status}). Please try again.`;
+  }
+}
+
 // ─── Core fetch with auth + 401 retry ────────────────────────────────────────
 
 async function apiFetch<T>(
@@ -88,8 +107,9 @@ async function apiFetch<T>(
   const json = await res.json().catch(() => null);
   // FastAPI errors use `detail`, custom errors use `message` — check both
   if (!res.ok) {
-    const msg = json?.detail ?? json?.message ?? `HTTP ${res.status}`;
-    throw new Error(Array.isArray(msg) ? msg.map((e: { msg: string }) => e.msg).join(", ") : String(msg));
+    const raw = json?.detail ?? json?.message;
+    const msg = Array.isArray(raw) ? raw.map((e: { msg: string }) => e.msg).join(", ") : raw;
+    throw new Error(friendlyError(res.status, msg ? String(msg) : undefined));
   }
 
   // Backend wraps: { success, data } — unwrap automatically
@@ -112,11 +132,12 @@ export async function apiLogin(email: string, password: string): Promise<TokenRe
   const json = await res.json().catch(() => null);
 
   if (!res.ok) {
-    const detail = json?.detail ?? json?.message ?? `HTTP ${res.status}`;
+    const raw = json?.detail ?? json?.message;
+    const msg = Array.isArray(raw) ? raw.map((e: { msg: string }) => e.msg).join(", ") : raw;
     throw new Error(
-      Array.isArray(detail)
-        ? detail.map((e: { msg: string }) => e.msg).join(", ")
-        : String(detail),
+      res.status === 401
+        ? "Incorrect email or password. Please try again."
+        : friendlyError(res.status, msg ? String(msg) : undefined),
     );
   }
 
@@ -142,6 +163,17 @@ export async function apiRegister(payload: {
 export async function apiGetMe(): Promise<User> {
   const raw = await apiFetch<RawUser>("/api/v1/auth/me");
   return mapUser(raw);
+}
+
+export async function apiLogout(): Promise<void> {
+  await apiFetch("/api/v1/auth/logout", { method: "POST" });
+}
+
+export async function apiChangePassword(currentPassword: string, newPassword: string): Promise<void> {
+  await apiFetch("/api/v1/auth/change-password", {
+    method: "POST",
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  });
 }
 
 // ─── Admin: Users ─────────────────────────────────────────────────────────────
@@ -180,6 +212,11 @@ export async function apiGetUsers(params?: {
   return { ...data, items: data.items.map(mapUser) };
 }
 
+export async function apiGetUser(id: string): Promise<User> {
+  const raw = await apiFetch<RawUser>(`/api/v1/users/${id}`);
+  return mapUser(raw);
+}
+
 export async function apiUpdateUser(
   id: string,
   payload: { full_name?: string; facility_name?: string; is_active?: boolean; role?: string; is_verified?: boolean },
@@ -199,22 +236,22 @@ export async function apiPredict(file: File, diagnosisId?: string): Promise<Pred
   form.append("disease_type", "malaria");
   if (diagnosisId) form.append("diagnosis_id", diagnosisId);
 
-  const token   = getStoredAccessToken();
-  const headers = new Headers();
-  if (token) headers.set("Authorization", `Bearer ${token}`);
-
-  const res  = await fetch(`${API_BASE}/api/v1/predictions/predict`, {
-    method: "POST", body: form, headers,
+  // apiFetch handles FormData (skips Content-Type), 401-retry, and friendly errors
+  return apiFetch<Prediction>("/api/v1/predictions/predict", {
+    method: "POST",
+    body: form,
   });
-  const json = await res.json().catch(() => null);
-  if (!res.ok) throw new Error(json?.message ?? `HTTP ${res.status}`);
-  if (json?.success === false) throw new Error(json.message ?? "Prediction failed");
-  return (json?.data ?? json) as Prediction;
 }
 
-export async function apiGetPredictionHistory(): Promise<PredictionHistoryItem[]> {
+export async function apiGetPredictionHistory(params?: {
+  disease_type?: string; page?: number; page_size?: number;
+}): Promise<PredictionHistoryItem[]> {
+  const q = new URLSearchParams();
+  if (params?.disease_type) q.set("disease_type", params.disease_type);
+  if (params?.page)         q.set("page",         String(params.page));
+  if (params?.page_size)    q.set("page_size",    String(params.page_size));
   const data = await apiFetch<PaginatedResponse<PredictionHistoryItem> | PredictionHistoryItem[]>(
-    "/api/v1/predictions/history"
+    `/api/v1/predictions/history?${q}`
   );
   return Array.isArray(data) ? data : (data as PaginatedResponse<PredictionHistoryItem>).items ?? [];
 }
@@ -226,12 +263,13 @@ export async function apiGetPrediction(id: string): Promise<Prediction> {
 // ─── Patients ─────────────────────────────────────────────────────────────────
 
 export async function apiGetPatients(params?: {
-  search?: string; page?: number; page_size?: number;
+  search?: string; facility_name?: string; page?: number; page_size?: number;
 }): Promise<PaginatedResponse<Patient>> {
   const q = new URLSearchParams();
-  if (params?.search)    q.set("search",    params.search);
-  if (params?.page)      q.set("page",      String(params.page));
-  if (params?.page_size) q.set("page_size", String(params.page_size));
+  if (params?.search)        q.set("search",        params.search);
+  if (params?.facility_name) q.set("facility_name", params.facility_name);
+  if (params?.page)          q.set("page",          String(params.page));
+  if (params?.page_size)     q.set("page_size",     String(params.page_size));
   return apiFetch<PaginatedResponse<Patient>>(`/api/v1/patients/?${q}`);
 }
 
@@ -248,15 +286,33 @@ export async function apiCreatePatient(data: {
   });
 }
 
+export async function apiUpdatePatient(
+  id: string,
+  data: { full_name?: string; date_of_birth?: string; sex?: string; phone?: string; address?: string; facility_name?: string; notes?: string },
+): Promise<Patient> {
+  return apiFetch<Patient>(`/api/v1/patients/${id}`, {
+    method: "PATCH", body: JSON.stringify(data),
+  });
+}
+
+export async function apiDeletePatient(id: string): Promise<void> {
+  await apiFetch(`/api/v1/patients/${id}`, { method: "DELETE" });
+}
+
 // ─── Diagnoses ────────────────────────────────────────────────────────────────
 
 export async function apiGetDiagnoses(params?: {
-  patient_id?: string; status?: string; page?: number;
+  patient_id?: string; status?: string; facility_name?: string;
+  date_from?: string; date_to?: string; page?: number; page_size?: number;
 }): Promise<PaginatedResponse<Diagnosis>> {
   const q = new URLSearchParams();
-  if (params?.patient_id) q.set("patient_id", params.patient_id);
-  if (params?.status)     q.set("status",     params.status);
-  if (params?.page)       q.set("page",        String(params.page));
+  if (params?.patient_id)    q.set("patient_id",    params.patient_id);
+  if (params?.status)        q.set("status",        params.status);
+  if (params?.facility_name) q.set("facility_name", params.facility_name);
+  if (params?.date_from)     q.set("date_from",     params.date_from);
+  if (params?.date_to)       q.set("date_to",       params.date_to);
+  if (params?.page)          q.set("page",          String(params.page));
+  if (params?.page_size)     q.set("page_size",     String(params.page_size));
   return apiFetch<PaginatedResponse<Diagnosis>>(`/api/v1/diagnoses/?${q}`);
 }
 
@@ -272,10 +328,48 @@ export async function apiCreateDiagnosis(data: {
   });
 }
 
+export async function apiUpdateDiagnosis(
+  id: string,
+  data: { status?: string; clinical_notes?: string },
+): Promise<Diagnosis> {
+  return apiFetch<Diagnosis>(`/api/v1/diagnoses/${id}`, {
+    method: "PATCH", body: JSON.stringify(data),
+  });
+}
+
 // ─── Analytics ────────────────────────────────────────────────────────────────
 
-export async function apiGetAnalytics(): Promise<AnalyticsDashboard> {
-  return apiFetch<AnalyticsDashboard>("/api/v1/analytics/dashboard");
+export async function apiGetAnalytics(params?: {
+  date_from?: string; date_to?: string; facility_name?: string;
+}): Promise<AnalyticsDashboard> {
+  const q = new URLSearchParams();
+  if (params?.date_from)     q.set("date_from",     params.date_from);
+  if (params?.date_to)       q.set("date_to",       params.date_to);
+  if (params?.facility_name) q.set("facility_name", params.facility_name);
+  const qs = q.toString();
+  return apiFetch<AnalyticsDashboard>(`/api/v1/analytics/dashboard${qs ? `?${qs}` : ""}`);
+}
+
+async function apiFetchBlob(path: string, params?: Record<string, string>): Promise<Blob> {
+  const q = new URLSearchParams(params);
+  const token = getStoredAccessToken();
+  const headers = new Headers();
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  const url = `${API_BASE}${path}${q.toString() ? `?${q}` : ""}`;
+  const res = await fetch(url, { headers });
+  if (!res.ok) {
+    const json = await res.json().catch(() => null);
+    throw new Error(json?.detail ?? json?.message ?? `HTTP ${res.status}`);
+  }
+  return res.blob();
+}
+
+export async function apiExportCsv(params?: { date_from?: string; date_to?: string }): Promise<Blob> {
+  return apiFetchBlob("/api/v1/analytics/export/csv", params as Record<string, string>);
+}
+
+export async function apiExportPdf(params?: { date_from?: string; date_to?: string }): Promise<Blob> {
+  return apiFetchBlob("/api/v1/analytics/export/pdf", params as Record<string, string>);
 }
 
 // ─── Mock fallbacks (used when backend is unavailable) ───────────────────────

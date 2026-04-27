@@ -4,7 +4,7 @@ import React, {
   createContext, useContext, useState, useEffect, useCallback,
 } from "react";
 import type { User, UserRole } from "@/lib/types";
-import { apiLogin, apiGetMe, clearTokens, getStoredAccessToken } from "@/lib/api";
+import { apiLogin, apiGetMe, apiLogout, clearTokens, getStoredAccessToken } from "@/lib/api";
 
 interface AuthContextValue {
   user: User | null;
@@ -40,6 +40,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
+    apiLogout().catch(() => {}); // fire-and-forget; invalidate server-side session
     clearTokens();
     setUser(null);
   }, []);

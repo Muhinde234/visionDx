@@ -26,16 +26,16 @@ export default function LoginPage() {
     e.preventDefault();
     setFieldError(null);
     if (!email || !password) {
-      setFieldError("CREDENTIAL_LOG: FIELDS_EMPTY");
+      setFieldError("Please enter your email and password.");
       return;
     }
     setIsLoading(true);
     try {
       const me = await login(email.trim(), password);
-      success("AUTHENTICATED: SESSION_START");
+      success("Welcome back!");
       router.push(me.role === "admin" ? "/admin" : "/dashboard");
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "ACCESS_DENIED";
+      const msg = err instanceof Error ? err.message : "Incorrect email or password.";
       setFieldError(msg);
       error(msg);
     } finally {
@@ -86,7 +86,7 @@ export default function LoginPage() {
 
           <div className="flex items-center gap-2 mt-6 opacity-60">
             <Activity size={12} className="text-primary animate-pulse" />
-            <span className="text-[10px] font-black text-dark dark:text-primary tracking-[0.5em] uppercase">Security Interface</span>
+            <span className="text-[10px] font-black text-dark dark:text-primary tracking-[0.5em] uppercase">Sign in to continue</span>
           </div>
         </div>
 
@@ -104,7 +104,7 @@ export default function LoginPage() {
                   User<br/><span className="text-primary">Portal</span>
                 </h2>
                 <p className="text-[10px] font-mono text-dark/30 dark:text-primary/40 mt-3 flex items-center gap-2 uppercase tracking-[0.2em]">
-                  <span className="w-1 h-1 bg-primary rounded-full" /> node: 0xff429
+                  <span className="w-1 h-1 bg-primary rounded-full animate-pulse" /> VisionDX · Rwanda
                 </p>
               </div>
               <div className="h-14 w-14 bg-primary/5 rounded-2xl flex items-center justify-center text-primary border border-primary/10">
@@ -128,7 +128,7 @@ export default function LoginPage() {
 
               {/* Identification Input */}
               <div className="space-y-1.5">
-                <label className="text-[9px] font-black text-primary uppercase tracking-[0.3em] ml-1">Identification String</label>
+                <label className="text-[9px] font-black text-primary uppercase tracking-[0.3em] ml-1">Email address</label>
                 <input
                   type="email"
                   value={email}
@@ -141,7 +141,7 @@ export default function LoginPage() {
               {/* Security Key Input */}
               <div className="space-y-1.5">
                 <div className="flex justify-between items-center px-1">
-                  <label className="text-[9px] font-black text-primary uppercase tracking-[0.3em]">Security Key</label>
+                  <label className="text-[9px] font-black text-primary uppercase tracking-[0.3em]">Password</label>
                   <Link href="/forgot-password" className="text-[9px] font-black text-dark/30 dark:text-white/30 hover:text-primary transition-colors uppercase">Forgot?</Link>
                 </div>
                 <div className="relative">
@@ -192,7 +192,7 @@ export default function LoginPage() {
       
       {/* ── Fixed Console Errors (Next/Link spacing removed) ── */}
       <div className="absolute bottom-10 left-10 hidden lg:block pointer-events-none">
-        <p className="text-[8px] font-mono text-primary/30 uppercase tracking-[0.5em]">SYSTEM_STATUS: SECURE_V4</p>
+        <p className="text-[8px] font-mono text-primary/30 uppercase tracking-[0.5em]">Malaria Diagnostics Platform</p>
       </div>
     </div>
   );

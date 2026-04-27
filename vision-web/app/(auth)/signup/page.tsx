@@ -13,10 +13,9 @@ import Logo from "@/components/Logo";
 import { apiRegister } from "@/lib/api";
 
 const ROLES = [
-  { value: "doctor",          label: "Doctor" },
-  { value: "lab_technician",  label: "Lab Technician" },
-  { value: "technician",      label: "Technician" },
-  { value: "admin",           label: "Admin" },
+  { value: "doctor",         label: "Doctor" },
+  { value: "lab_technician", label: "Lab Technician" },
+  { value: "admin",          label: "Admin" },
 ];
 
 export default function SignupPage() {
@@ -101,7 +100,7 @@ export default function SignupPage() {
           <div className="flex items-center gap-2 mt-6 opacity-60">
             <Activity size={12} className="text-primary animate-pulse" />
             <span className="text-[9px] font-black text-dark dark:text-primary tracking-[0.5em] uppercase">
-              Registration Interface
+              Create your account
             </span>
           </div>
         </div>

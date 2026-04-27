@@ -36,6 +36,15 @@ export interface TokenResponse {
 
 export type SeverityLevel = "negative" | "mild" | "moderate" | "severe";
 
+export type ParasiteStage = "ring" | "trophozoite" | "schizont" | "gametocyte";
+
+export interface Detection {
+  stage: ParasiteStage;
+  confidence: number;
+  /** [x, y, width, height] in image pixels */
+  bbox: [number, number, number, number];
+}
+
 export interface Prediction {
   id: string;
   predicted_class: string;
@@ -47,6 +56,12 @@ export interface Prediction {
   created_at: string;
   diagnosis_id?: string;
   image_url?: string;
+  /** Per-detection bounding boxes returned by the AI model */
+  detections?: Detection[];
+  /** Total parasite cell count across all detections */
+  parasite_count?: number;
+  /** Estimated parasitaemia percentage */
+  parasitaemia?: number;
 }
 
 export interface PredictionHistoryItem {
@@ -64,7 +79,7 @@ export interface Patient {
   id: string;
   full_name: string;
   date_of_birth: string;
-  sex: "M" | "F" | "Other";
+  sex: "male" | "female" | "other";
   phone?: string;
   address?: string;
   facility_name?: string;

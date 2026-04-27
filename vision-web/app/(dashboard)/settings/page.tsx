@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
+import { apiChangePassword } from "@/lib/api";
 
 const THEME_KEY = "visiondx_theme";
 
@@ -38,11 +39,14 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 export default function SettingsPage() {
   const { user } = useAuth();
-  const { success } = useToast();
+  const { success, error } = useToast();
 
   const [isDark, setIsDark] = useState(false);
   const [notifs, setNotifs] = useState({ scanComplete: true, weeklyReport: false, systemAlerts: true });
   const [profile, setProfile] = useState({ name: user?.name ?? "", email: user?.email ?? "", facility: user?.facility_name ?? "" });
+  const [pwOpen, setPwOpen] = useState(false);
+  const [pwForm, setPwForm] = useState({ current: "", next: "", confirm: "" });
+  const [pwLoading, setPwLoading] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem(THEME_KEY);
@@ -59,8 +63,20 @@ export default function SettingsPage() {
     success("Profile updated successfully.");
   }
 
-  function changePassword() {
-    success("Password change link sent to your email. (Demo mode)");
+  async function changePassword() {
+    if (!pwForm.current || !pwForm.next) return;
+    if (pwForm.next !== pwForm.confirm) { error("New passwords do not match."); return; }
+    setPwLoading(true);
+    try {
+      await apiChangePassword(pwForm.current, pwForm.next);
+      success("Password changed successfully.");
+      setPwOpen(false);
+      setPwForm({ current: "", next: "", confirm: "" });
+    } catch (e) {
+      error(e instanceof Error ? e.message : "Failed to change password.");
+    } finally {
+      setPwLoading(false);
+    }
   }
 
   return (
@@ -80,7 +96,7 @@ export default function SettingsPage() {
             </div>
             <div>
               <p className="text-sm font-semibold text-[#0F172A] dark:text-white">{user?.name}</p>
-              <p className="text-xs text-[#0F172A]/50 dark:text-white/50 capitalize mt-0.5">{user?.role === "admin" ? "Administrator" : "Lab Technician"}</p>
+              <p className="text-xs text-[#0F172A]/50 dark:text-white/50 capitalize mt-0.5">{user?.role === "admin" ? "Administrator" : user?.role === "doctor" ? "Doctor" : "Lab Technician"}</p>
               <span className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${user?.status === "active" ? "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400" : "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400"}`}>
                 <span className={`h-1.5 w-1.5 rounded-full ${user?.status === "active" ? "bg-green-500" : "bg-red-500"}`} />
                 {user?.status}
@@ -130,7 +146,7 @@ export default function SettingsPage() {
           </div>
 
           <div>
-            <p className="text-xs font-medium text-[#0F172A]/50 dark:text-white/50 uppercase tracking-wider mb-3">Theme preview</p>
+            <p className="text-xs font-medium text-[#0F172A]/50 dark:text-white/50 tracking-wider mb-3">Theme preview</p>
             <div className="grid grid-cols-2 gap-3">
               <button
                 onClick={() => applyTheme(false)}
@@ -181,14 +197,45 @@ export default function SettingsPage() {
       {/* Security */}
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
         <Section title="Security">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-[#0F172A] dark:text-white">Password</p>
-              <p className="text-xs text-[#0F172A]/50 dark:text-white/50 mt-0.5">Last changed: Never (demo account)</p>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-[#0F172A] dark:text-white">Password</p>
+                <p className="text-xs text-[#0F172A]/50 dark:text-white/50 mt-0.5">Update your account password.</p>
+              </div>
+              <button
+                onClick={() => { setPwOpen((o) => !o); setPwForm({ current: "", next: "", confirm: "" }); }}
+                className="rounded-xl border border-[#10B981]/30 px-4 py-2 text-xs font-semibold text-[#0F172A] dark:text-white hover:bg-[#10B981]/5 transition-colors"
+              >
+                {pwOpen ? "Cancel" : "Change"}
+              </button>
             </div>
-            <button onClick={changePassword} className="rounded-xl border border-[#10B981]/30 px-4 py-2 text-xs font-semibold text-[#0F172A] dark:text-white hover:bg-[#10B981]/5 transition-colors">
-              Change
-            </button>
+            {pwOpen && (
+              <div className="space-y-3 pt-1">
+                {[
+                  { key: "current", label: "Current password" },
+                  { key: "next",    label: "New password" },
+                  { key: "confirm", label: "Confirm new password" },
+                ].map(({ key, label }) => (
+                  <div key={key}>
+                    <label className="block text-xs font-medium text-[#0F172A]/50 dark:text-white/50 mb-1.5">{label}</label>
+                    <input
+                      type="password"
+                      value={pwForm[key as keyof typeof pwForm]}
+                      onChange={(e) => setPwForm((f) => ({ ...f, [key]: e.target.value }))}
+                      className="w-full rounded-xl border border-[#10B981]/20 bg-[#10B981]/5 dark:bg-white/5 px-4 py-2.5 text-sm text-[#0F172A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#10B981] transition-shadow"
+                    />
+                  </div>
+                ))}
+                <button
+                  onClick={changePassword}
+                  disabled={pwLoading}
+                  className="w-full rounded-xl bg-[#10B981] hover:bg-[#059669] py-2.5 text-sm font-semibold text-white transition-colors disabled:opacity-60"
+                >
+                  {pwLoading ? "Saving…" : "Update password"}
+                </button>
+              </div>
+            )}
           </div>
           <div className="flex items-center justify-between">
             <div>

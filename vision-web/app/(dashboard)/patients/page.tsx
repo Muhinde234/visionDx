@@ -12,13 +12,13 @@ import { useToast } from "@/context/ToastContext";
 import type { Patient } from "@/lib/types";
 
 const SEX_OPTS = [
-  { value: "M", label: "Male" },
-  { value: "F", label: "Female" },
-  { value: "Other", label: "Other" },
+  { value: "male",   label: "Male" },
+  { value: "female", label: "Female" },
+  { value: "other",  label: "Other" },
 ];
 
 const EMPTY_FORM = {
-  full_name: "", date_of_birth: "", sex: "M",
+  full_name: "", date_of_birth: "", sex: "male",
   phone: "", address: "", facility_name: "", notes: "",
 };
 
