@@ -135,7 +135,10 @@ async function apiFetch<T>(
 
   // Backend wraps: { success, data } — unwrap automatically
   if (json && typeof json === "object" && "success" in json) {
-    if (!json.success) throw new Error(json.detail ?? json.message ?? "API error");
+    if (!json.success) {
+      const raw = String(json.detail ?? json.message ?? "Something went wrong. Please try again.");
+      throw new Error(isInfrastructureError(raw) ? AI_UNAVAILABLE : raw);
+    }
     return json.data as T;
   }
   return json as T;
