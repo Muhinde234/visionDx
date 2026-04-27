@@ -138,7 +138,7 @@ export default function DashboardPage() {
         </div>
       </motion.div>
 
-      {/* ── Stat cards ─────────────────────────────────────────────────────── */}
+     
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <StatCard title="Total Diagnoses"  value={analytics.total_diagnoses}  subtitle="All time"          delay={0}    trend={12} icon={<Activity    size={18} strokeWidth={1.8} />} />
         <StatCard title="Positive Cases"   value={analytics.positive_cases}   subtitle={`${analytics.positivity_rate.toFixed(1)}% positivity`} delay={0.05} trend={-3} icon={<AlertCircle  size={18} strokeWidth={1.8} />} />
@@ -146,10 +146,10 @@ export default function DashboardPage() {
         <StatCard title="Pending Reviews"  value={analytics.severity_breakdown?.severe ?? 0} subtitle="Severe cases" delay={0.15} trend={0} icon={<Stethoscope size={18} strokeWidth={1.8} />} />
       </div>
 
-      {/* ── Charts ─────────────────────────────────────────────────────────── */}
+    
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
 
-        {/* Recent trend bar chart — 2 cols */}
+     
         <motion.div
           initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
           className="xl:col-span-2 rounded-2xl bg-white dark:bg-[#0F172A] border border-[#10B981]/20 p-5 shadow-sm"
@@ -174,7 +174,7 @@ export default function DashboardPage() {
           </ResponsiveContainer>
         </motion.div>
 
-        {/* Severity breakdown pie — 1 col */}
+      
         <motion.div
           initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
           className="rounded-2xl bg-white dark:bg-[#0F172A] border border-[#10B981]/20 p-5 shadow-sm"
@@ -195,7 +195,7 @@ export default function DashboardPage() {
         </motion.div>
       </div>
 
-      {/* ── Stage breakdown ─────────────────────────────────────────────────── */}
+     
       {Object.keys(analytics.stage_breakdown).length > 0 && (
         <motion.div
           initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}

@@ -72,7 +72,7 @@ export default function DiagnosesPage() {
         </Link>
       </motion.div>
 
-      {/* Status filter tabs */}
+    
       <div className="flex gap-2 flex-wrap">
         {STATUS_OPTS.map((s) => (
           <button key={s || "all"} onClick={() => handleStatusChange(s)}

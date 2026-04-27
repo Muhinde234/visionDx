@@ -42,7 +42,7 @@ export default function SettingsPage() {
 
   const [isDark, setIsDark] = useState(false);
   const [notifs, setNotifs] = useState({ scanComplete: true, weeklyReport: false, systemAlerts: true });
-  const [profile, setProfile] = useState({ name: user?.name ?? "", email: user?.email ?? "", department: user?.facility_name ?? "" });
+  const [profile, setProfile] = useState({ name: user?.name ?? "", email: user?.email ?? "", facility: user?.facility_name ?? "" });
 
   useEffect(() => {
     const stored = localStorage.getItem(THEME_KEY);
@@ -93,7 +93,7 @@ export default function SettingsPage() {
             {[
               { key: "name", label: "Full name", type: "text" },
               { key: "email", label: "Email address", type: "email" },
-              { key: "department", label: "Department", type: "text" },
+              { key: "facility", label: "Facility", type: "text" },
             ].map(({ key, label, type }) => (
               <div key={key}>
                 <label className="block text-xs font-medium text-[#0F172A]/50 dark:text-white/50 mb-1.5">{label}</label>

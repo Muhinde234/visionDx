@@ -106,7 +106,7 @@ export default function AdminDashboardPage() {
 
         <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold text-[#10B981] uppercase tracking-wider mb-1">Admin Console</p>
+            <p className="text-xs font-semibold text-[#10B981]  tracking-wider mb-1">Admin Console</p>
             <h2 className="text-xl font-bold text-white">System Overview</h2>
             <p className="mt-1 text-sm text-white/50">VisionDX — AI Malaria Diagnostics Platform</p>
           </div>
