@@ -61,20 +61,41 @@ async function attemptRefresh(): Promise<string | null> {
 
 // ─── Friendly HTTP error messages ────────────────────────────────────────────
 
+/** Detects raw infrastructure / service errors that are too technical to show users */
+function isInfrastructureError(msg: string): boolean {
+  const s = msg.toLowerCase();
+  return (
+    s.includes("unreachable") ||
+    s.includes("connection attempt") ||
+    s.includes("all connection") ||
+    s.includes("inference service") ||
+    s.includes("service error") ||
+    s.includes("failed to connect") ||
+    s.includes("connection refused") ||
+    s.includes("econnrefused") ||
+    s.includes("network error") ||
+    (s.includes("timeout") && s.includes("service"))
+  );
+}
+
+const AI_UNAVAILABLE = "The AI service is temporarily unavailable. Please try again in a few minutes.";
+
 function friendlyError(status: number, serverMsg?: string): string {
-  if (serverMsg) return serverMsg;
-  switch (true) {
-    case status === 401: return "Your session has expired. Please sign in again.";
-    case status === 403: return "You don't have permission to do that.";
-    case status === 404: return "The requested resource was not found.";
-    case status === 413: return "The file is too large. Please use an image under 10 MB.";
-    case status === 422: return "Some information is invalid. Please check your input and try again.";
-    case status === 429: return "Too many requests. Please wait a moment and try again.";
-    case status === 502:
-    case status === 503:
-    case status === 504: return "The AI service is temporarily unavailable. Please try again in a few minutes.";
-    case status >= 500:  return "Something went wrong on the server. Please try again shortly.";
-    default:             return `Request failed (${status}). Please try again.`;
+  // 5xx: infrastructure — never surface raw backend stack traces or service errors
+  if (status >= 500) {
+    if (status === 502 || status === 503 || status === 504) return AI_UNAVAILABLE;
+    return "Something went wrong on the server. Please try again shortly.";
+  }
+  // 4xx: use server message only if it doesn't look like an infrastructure trace
+  if (serverMsg && !isInfrastructureError(serverMsg)) return serverMsg;
+  switch (status) {
+    case 401: return "Your session has expired. Please sign in again.";
+    case 403: return "You don't have permission to do that.";
+    case 404: return "The requested resource was not found.";
+    case 413: return "The file is too large. Please use an image under 10 MB.";
+    case 422: return serverMsg ?? "Some information is invalid. Please check your input.";
+    case 429: return "Too many requests. Please wait a moment and try again.";
+    default:  return `Request failed (${status}). Please try again.`;
   }
 }
 

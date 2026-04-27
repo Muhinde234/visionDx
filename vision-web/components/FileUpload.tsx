@@ -2,7 +2,6 @@
 
 import { useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import Image from "next/image";
 import { X, ImageIcon, Loader2 } from "lucide-react";
 
 interface FileUploadProps {
@@ -83,7 +82,8 @@ export default function FileUpload({ onFileSelect, isLoading = false, accept = "
               className="relative p-4"
             >
               <div className="relative rounded-xl overflow-hidden aspect-video bg-black">
-                <Image src={preview} alt="Preview" fill className="object-contain" />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={preview} alt="Preview" className="absolute inset-0 w-full h-full object-contain" />
               </div>
               <div className="mt-3 flex items-center justify-between">
                 <p className="text-sm text-slate-600 dark:text-slate-300 truncate max-w-xs">
